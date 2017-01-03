@@ -17,7 +17,7 @@ class Cell(IntEnum):
             return Cell.RED
 
 class World:
-    def __init__(self, size, update_rate=0.01, number_of_resources=3):
+    def __init__(self, size=40, update_rate=0.01, number_of_resources=3):
         self.size = size
         self.number_of_resources = number_of_resources
         self.grid = np.zeros((size, size))
@@ -31,47 +31,46 @@ class World:
         self.update_rate = update_rate
         self.iteration = 0
         self.resources = []
-        self.smell_decay_rate = 80./self.size
-        self.fig, self.ax = pl.subplots(figsize=(9,9))
+        self.smell_decay_rate = 12./np.sqrt(self.size)
+        self.fig, self.ax = pl.subplots(figsize=(10,10))
         self.ax.set_xlim([-1, self.size])
         self.ax.set_ylim([-1, self.size])
         pl.ion()
-        # for i in range(self.size):
-        #     for j in range(self.size):
-        #         self.ax.scatter(i,j,marker='.', c='w', s=self.marker_size)
-        # self.background = self.fig.canvas.copy_from_bbox(self.ax.bbox) 
+        # self.fig.tight_layout()
+        self.fig.subplots_adjust(left=0.01, bottom=0.01, right=0.99, top=0.99, hspace=0.01, wspace=0.01)
 
 
     def draw(self):
         self.ax.clear()
-        # self.ax.grid()
         self.ax.axis('off')
-        # self.fig.canvas.restore_region(self.background)
         
         self.ax.plot([0, 0], [0, self.size-1], color='k', linestyle='--')
         self.ax.plot([0, self.size-1], [self.size-1, self.size -1], color='k', linestyle='--')
         self.ax.plot([0, self.size-1], [0, 0], color='k', linestyle='--')
         self.ax.plot([self.size-1, self.size-1], [0, self.size-1], color='k', linestyle='--')
 
-        self.ax.scatter(*self.red_center, marker='D', c='r', s=self.marker_size, alpha=0.8)
-        self.ax.scatter(*self.blue_center, marker='D', c='b', s=self.marker_size, alpha=0.8)
 
         for i in range(self.size):
             for j in range(self.size):
                 if self.smells[i][j] > 0:
-                    self.ax.scatter(i,j,marker='s', c='g', s=3.4*self.marker_size, alpha=self.smells[i][j]/100.*0.9)
+                    self.ax.scatter(i,j,marker='s', c='g', s=3.5*self.marker_size, 
+                        alpha=self.smells[i][j]/100.*0.9)
                 if self.grid[i][j] == Cell.EMPTY:
                     continue
-                    # self.ax.scatter(i,j,marker='.', c='w', s=self.marker_size)
                 elif self.grid[i][j] == Cell.RED:
-                    self.ax.scatter(i,j,marker='o', c='r', s=2.5*self.marker_size, alpha=0.1 + self.ants_positions[(i,j)].power/100.*0.8)
+                    self.ax.scatter(i,j,marker='o', c='r', s=2.5*self.marker_size,
+                     alpha=0.1 + self.ants_positions[(i,j)].power/100.*0.8)
                 elif self.grid[i][j] == Cell.BLUE:
-                    self.ax.scatter(i,j,marker='o', c='b', s=2.5*self.marker_size, alpha=0.1 + self.ants_positions[(i,j)].power/100.*0.8)
+                    self.ax.scatter(i,j,marker='o', c='b', s=2.5*self.marker_size,
+                     alpha=0.1 + self.ants_positions[(i,j)].power/100.*0.8)
                 elif self.grid[i][j] == Cell.RESOURCE:
-                    self.ax.scatter(i,j,marker='*', c='y', s=1.5*self.marker_size)
+                    self.ax.scatter(i,j,marker='*', c='w', s=2*self.marker_size)
                 
         for x, y in self.resources:
-            self.ax.scatter(x,y,marker='D', c='y', s=self.marker_size, alpha=0.8)
+            self.ax.scatter(x,y,marker='D', c='y', s=0.7*self.marker_size, alpha=0.9)
+        self.ax.scatter(*self.red_center, marker='D', c='r', s=self.marker_size, alpha=0.8)
+        self.ax.scatter(*self.blue_center, marker='D', c='b', s=self.marker_size, alpha=0.8)
+
 
     def move_ant(self, ant, position):
         self.grid[ant.x][ant.y] = Cell.EMPTY
@@ -115,7 +114,7 @@ class World:
                 self.grid[self.blue_center[0]][self.blue_center[1]] = Cell.BLUE
 
 
-    def add_resources(self, probability=0.8, iterations_to_change=60):
+    def add_resources(self, probability=0.8, iterations_to_change=80):
         if self.iteration % iterations_to_change == 0:
             self.resources = [(np.random.randint(0, self.size), 
                 np.random.choice(list(range(self.size//2-1)) + list(range(self.size//2+1, self.size))))
@@ -126,11 +125,11 @@ class World:
                     self.grid[cell[0]][cell[1]] = Cell.RESOURCE
 
 
-    def add_smell(self, ant, number=100):
+    def add_smell(self, ant, number=70):
         x, y = ant.x, ant.y
-        self.smells[x][y] += number - ant.steps_after_found*self.smell_decay_rate
-        if self.smells[x][y] > 100:
-            self.smells[x][y] = 100
+        inc_n = number - ant.steps_after_found*(self.smell_decay_rate + 0.01)
+        if self.smells[x][y] < inc_n:
+            self.smells[x][y] = inc_n
 
 
     def get_environment(self, position):
@@ -195,11 +194,11 @@ class Ant:
         self.steps_after_found = 0
 
 
-    def choose_position(self, smell_threshold=10):
+    def choose_position(self):
         x_indices, y_indices, grid_values, smells = world.get_environment((self.x, self.y))
         
         if self.state == AntState.WANDER_AND_FIGHT:    
-            resources = grid_values == Cell.RESOURCE 
+            resources = grid_values == Cell.RESOURCE
             if resources.sum() > 0:
                 index = np.random.choice(np.where(resources)[0])
             else:
@@ -209,10 +208,7 @@ class Ant:
                 else:
                     empty = grid_values == Cell.EMPTY
                     if empty.sum() > 0:
-                        if smells.max() <= smell_threshold:
-                            index = np.random.choice(np.where(empty)[0])
-                        else:
-                            index = np.random.choice(np.where(smells == smells[empty].max())[0])
+                        index = np.random.choice(np.where(smells == smells[empty].max())[0])
                     else:
                         index = np.random.randint(0, grid_values.shape[0])
         elif self.state == AntState.FOUND_RESOURCE:
@@ -234,7 +230,12 @@ class Ant:
                             np.abs(y_indices + self.world.size - center[1]), 
                             np.abs(y_indices - self.world.size - center[1]))
                         )
-                    index = np.random.choice(np.where(distances == distances[empty].min())[0])
+                    distances_mask = distances == distances[empty].min()
+                    if smells[distances_mask].max() > 0:
+                        index = np.random.choice(np.where(
+                            (smells == smells[distances_mask].max()) & distances_mask)[0])
+                    else:
+                        index = np.random.choice(np.where(distances_mask)[0])
                 else:
                     index = np.random.randint(0, grid_values.shape[0])
                 self.steps_after_found += 1
@@ -262,6 +263,7 @@ class Ant:
                     self.power = average_power
                     ant.power = average_power 
 
+
     def decrease_power(self, number=20):
         self.power -= number
         if self.power <= 0:
@@ -276,7 +278,7 @@ class Ant:
 
                     
 
-np.random.seed(251192)
+np.random.seed(6492)
 world = World(40)
 world.draw()
 pl.pause(0.01)
