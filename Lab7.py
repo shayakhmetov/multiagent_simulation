@@ -1,8 +1,8 @@
 import numpy as np
-import collections, itertools
-import time 
+import collections
 import pylab as pl
 from enum import IntEnum
+import pandas as pd
 
 class Cell(IntEnum):
     """
@@ -27,7 +27,7 @@ class World:
     Class provides access to the simulation (simulating one step and drawing).
     It also probides the environment for ants (2D grid, ants' neighbourhood, movement of ants, resources addition, etc.)
     """
-    def __init__(self, size=40, update_rate=0.001, number_of_resources=3):
+    def __init__(self, size=40, update_rate=0.001, number_of_resources=3, draw_mode=True):
         """
         Initialization of model parameters and creation of a graphical canvas. 
         """
@@ -47,12 +47,14 @@ class World:
         self.smell_decay_rate = 20./np.sqrt(self.size) 
         # "smell" has a value between 0 and 100 and decreases by decay rate until zero each step  
 
+        self.draw_mode = draw_mode
         # Setting a window for drawing the grid
-        self.fig, self.ax = pl.subplots(figsize=(10,10))
-        self.ax.set_xlim([-1, self.size])
-        self.ax.set_ylim([-1, self.size])
-        pl.ion()
-        self.fig.subplots_adjust(left=0.01, bottom=0.01, right=0.99, top=0.99, hspace=0.01, wspace=0.01)
+        if self.draw_mode:
+            self.fig, self.ax = pl.subplots(figsize=(10,10))
+            self.ax.set_xlim([-1, self.size])
+            self.ax.set_ylim([-1, self.size])
+            pl.ion()
+            self.fig.subplots_adjust(left=0.01, bottom=0.01, right=0.99, top=0.99, hspace=0.01, wspace=0.01)
 
 
     def draw(self):
@@ -218,6 +220,7 @@ class World:
         """
         self.add_ants()
         self.add_resources()
+        
         def iterate_and_action(ants):
             died = 0
             for i in range(len(ants)):
@@ -226,18 +229,66 @@ class World:
                     died += 1
                 else:
                     ants[i-died].action()
-        iterate_and_action(self.red_ants)
+            return died
+
+        self.red_killed = iterate_and_action(self.red_ants)
         # Update the drawing after each team finishes their actions.
-        self.draw()
-        pl.pause(self.update_rate)
-        iterate_and_action(self.blue_ants)
-        self.draw()
-        pl.pause(self.update_rate)
+        if self.draw_mode:
+            self.draw()
+            pl.pause(self.update_rate)
+
+        self.blue_killed = iterate_and_action(self.blue_ants)
+        if self.draw_mode:
+            self.draw()
+            pl.pause(self.update_rate)
+        
         # The strength of "smell" decreases until 0
         if self.smells.sum() > 0:
             self.smells -= self.smell_decay_rate
             self.smells[self.smells < 0] = 0
         self.iteration += 1
+
+
+    def simulate(self, number_of_steps=100000):
+        """
+        simulates the whole experiment and tracks statistics through all steps
+        returns pandas DataFrame with statistics
+        """
+
+        self.red_population_statistic = [] # Number of red ants in at particular time
+        self.blue_population_statistic = [] # Number of blue ants in at particular time
+        self.red_eat_statistic = [] # Number of eaten resources by red ants in at particular time
+        self.blue_eat_statistic = [] # Number of eaten resources by blue ants in at particular time
+        self.red_killed_statistic = [] # Number of killed red ants in at particular time
+        self.blue_killed_statistic = [] # Number of killed blue ants in at particular time
+        if self.draw_mode:
+            world.draw()
+            pl.pause(0.5)
+        for i in range(number_of_steps):
+            self.red_eat, self.blue_eat = 0, 0
+            self.one_step()
+            self.red_population_statistic.append(len(self.red_ants))
+            self.blue_population_statistic.append(len(self.blue_ants))
+            self.red_eat_statistic.append(self.red_eat)
+            self.blue_eat_statistic.append(self.blue_eat)
+            self.red_killed_statistic.append(self.red_killed)
+            self.blue_killed_statistic.append(self.blue_killed)
+
+        statistics = pd.DataFrame([
+            self.red_population_statistic, self.blue_population_statistic,
+            self.red_eat_statistic, self.blue_eat_statistic,
+            self.red_killed_statistic, self.blue_killed_statistic
+            ]).T
+        statistics.index.name = 'Time'
+        statistics.columns = ['Population_R', 'Population_B', 'CumEaten_R', 'CumEaten_B', 'CumDeaths_R', 'CumDeaths_B']
+        for column in statistics.columns:
+            if column.startswith('Cum'):
+                statistics[column] = statistics[column].cumsum()
+
+        return statistics
+
+
+
 
 
 
@@ -388,12 +439,20 @@ class Ant:
             self.power = 100
         self.state = AntState.FOUND_RESOURCE
         self.steps_after_found = 0
+        if self.breed == Cell.RED:
+            self.world.red_eat += 1
+        else:
+            self.world.blue_eat += 1
 
                     
 
 np.random.seed(64925)
-world = World(40)
-world.draw()
-pl.pause(0.01)
-while True:
-    world.one_step()
+# world = World(size=40)
+# world.simulate()
+
+number_of_experiments = 10
+for i in range(number_of_experiments):
+    world = World(size=40, draw_mode=False)
+    statistics = world.simulate(number_of_steps=1000)
+    statistics = statistics.append(statistics)
+statistics.to_csv('statistics.csv')
