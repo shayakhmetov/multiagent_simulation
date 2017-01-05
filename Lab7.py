@@ -448,7 +448,7 @@ class Ant:
 
 np.random.seed(64925)
 world = World(size=40)
-world.simulate()
+world.simulate(number_of_steps=100000)
 
 # number_of_experiments = 40
 # statistics = pd.DataFrame()
