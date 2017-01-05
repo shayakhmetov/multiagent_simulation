@@ -447,12 +447,12 @@ class Ant:
                     
 
 np.random.seed(64925)
-# world = World(size=40)
-# world.simulate()
+world = World(size=40)
+world.simulate()
 
-number_of_experiments = 10
-for i in range(number_of_experiments):
-    world = World(size=40, draw_mode=False)
-    statistics = world.simulate(number_of_steps=1000)
-    statistics = statistics.append(statistics)
-statistics.to_csv('statistics.csv')
+# number_of_experiments = 40
+# statistics = pd.DataFrame()
+# for i in range(number_of_experiments):
+#     world = World(size=40, draw_mode=False)
+#     statistics = statistics.append(world.simulate(number_of_steps=10000))
+# statistics.to_csv('statistics.csv')
