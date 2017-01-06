@@ -27,7 +27,7 @@ class World:
     Class provides access to the simulation (simulating one step and drawing).
     It also probides the environment for ants (2D grid, ants' neighbourhood, movement of ants, resources addition, etc.)
     """
-    def __init__(self, size=40, update_rate=0.001, number_of_resources=3, draw_mode=True):
+    def __init__(self, size=40, update_rate=0.001, number_of_resources=3, draw_mode=True, different=False):
         """
         Initialization of model parameters and creation of a graphical canvas. 
         """
@@ -43,7 +43,8 @@ class World:
         self.marker_size = 25000/size**2 # default marker size for a scatter plot
         self.update_rate = update_rate # Pause interval for animation (in seconds)
         self.iteration = 0 # iteration number (change of resource sources occurs periodically)
-        self.resources = [] # list of resource sources (coordinates) 
+        self.resources = [] # list of resource sources (coordinates)
+        self.different = different # Modification of simulation when red ants have double power and blue one two tries to add ants 
         self.smell_decay_rate = 20./np.sqrt(self.size) 
         # "smell" has a value between 0 and 100 and decreases by decay rate until zero each step  
 
@@ -82,10 +83,10 @@ class World:
                     continue
                 elif self.grid[i][j] == Cell.RED: # cell, occupied by a red ant
                     self.ax.scatter(i,j,marker='o', c='r', s=2.5*self.marker_size,
-                     alpha=0.1 + self.ants_positions[(i,j)].power/100.*0.8)
+                     alpha=0.1 + self.ants_positions[(i,j)].power/(100. + 100*int(self.different))*0.8)
                 elif self.grid[i][j] == Cell.BLUE: # cell, occupied by a blue ant
                     self.ax.scatter(i,j,marker='o', c='b', s=2.5*self.marker_size,
-                     alpha=0.1 + self.ants_positions[(i,j)].power/100.*0.8)
+                     alpha=0.1 + self.ants_positions[(i,j)].power/(100. + 100*int(self.different))*0.8)
                 elif self.grid[i][j] == Cell.RESOURCE: # resource (a star)
                     self.ax.scatter(i,j,marker='*', c='w', s=2*self.marker_size)
                 
@@ -133,24 +134,27 @@ class World:
         ant.death = True # This will be handy for removing the ant in the priority list 
 
 
-    def add_ants(self, probability=0.4):
+    def add_ants(self, probability=0.4,):
         """
         Each step this function tries to generate new ants.
         First, the center of ants must not be occupied. Otherwise, it won't be able to generate new ones.
         If the center is not occupied, random drawing with a defined probability determines whether to add an ant or not
+        different parameters tells whether to create equal breeds or different.
+        in a case of different breeds red have twice much power, but blue ones can add at most 2 ants in one turn
         """
         if self.red_center not in self.ants_positions:
             if np.random.random() < probability:
-                ant = Ant(self, self.red_center, Cell.RED)
+                ant = Ant(self, self.red_center, Cell.RED, different=self.different)
                 self.ants_positions[self.red_center] = ant
                 self.red_ants.append(ant) # The new ant goes the last to the priority list
                 self.grid[self.red_center[0]][self.red_center[1]] = Cell.RED
-        if self.blue_center not in self.ants_positions:
-            if np.random.random() < probability:
-                ant = Ant(self, self.blue_center, Cell.BLUE)
-                self.ants_positions[self.blue_center] = ant
-                self.blue_ants.append(ant)
-                self.grid[self.blue_center[0]][self.blue_center[1]] = Cell.BLUE
+        for center in [self.blue_center, (self.blue_center[0]+1, self.blue_center[0])][:int(self.different)+1]:
+            if center not in self.ants_positions:
+                    if np.random.random() < probability:
+                        ant = Ant(self, center, Cell.BLUE)
+                        self.ants_positions[center] = ant
+                        self.blue_ants.append(ant)
+                        self.grid[center[0]][center[1]] = Cell.BLUE
 
 
     def add_resources(self, probability=0.8, iterations_to_change=100):
@@ -304,13 +308,17 @@ class Ant:
     """
     Each ant is an object of this class. It contains all information about an ant.
     """
-    def __init__(self, world, position, breed):
+    def __init__(self, world, position, breed, different=False):
         self.world = world # world\environment reference 
         self.x, self.y = position # ant's position in the world
         self.breed = breed # ant's type (Red or Blue)
         self.death = False # if the ant dies this helps to delete him from a priority list 
         self.state = AntState.WANDER_AND_FIGHT # ant's state
-        self.power = 90. # ant's power/health (from 0 to 100). If it reaches 0 or below, the ant is considered dead 
+        self.different = different # Whether blue and read are different in power
+        if not different or self.breed == Cell.BLUE:
+            self.power = 90. # ant's power/health (from 0 to 100). If it reaches 0 or below, the ant is considered dead 
+        else:
+            self.power = 180.
         self.steps_after_found = 0 # in a state of FOUND_RESOURCE this variable counts the number of steps from a resource.
 
 
@@ -435,8 +443,8 @@ class Ant:
         It triggers the new state of found_resource.
         """
         self.power += number
-        if self.power > 100:
-            self.power = 100
+        if self.power > 100 + 100*int(self.different):
+            self.power = 100 + 100*int(self.different)
         self.state = AntState.FOUND_RESOURCE
         self.steps_after_found = 0
         if self.breed == Cell.RED:
@@ -447,12 +455,12 @@ class Ant:
                     
 
 np.random.seed(64925)
-world = World(size=40)
+world = World(size=40)  
 world.simulate(number_of_steps=100000)
 
 # number_of_experiments = 40
 # statistics = pd.DataFrame()
 # for i in range(number_of_experiments):
-#     world = World(size=40, draw_mode=False)
+#     world = World(size=40, draw_mode=False, different=True)
 #     statistics = statistics.append(world.simulate(number_of_steps=10000))
 # statistics.to_csv('statistics.csv')
