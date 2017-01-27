@@ -66,7 +66,6 @@ class World:
         self.ax.clear()
         # Remove axises 
         self.ax.axis('off')
-        
         # Draw a rectangle with dotted borders of the world
         self.ax.plot([0, 0], [0, self.size-1], color='k', linestyle='--')
         self.ax.plot([0, self.size-1], [self.size-1, self.size -1], color='k', linestyle='--')
@@ -96,7 +95,7 @@ class World:
         # Plot red and blue centers in a form of a diamond 
         self.ax.scatter(*self.red_center, marker='D', c='r', s=self.marker_size, alpha=0.8)
         self.ax.scatter(*self.blue_center, marker='D', c='b', s=self.marker_size, alpha=0.8)
-
+        self.ax.set_title('Iteration ' + str(self.iteration), y=0)
 
     def move_ant(self, ant, position):
         """
@@ -455,8 +454,8 @@ class Ant:
                     
 
 np.random.seed(64925)
-world = World(size=40)  
-world.simulate(number_of_steps=100000)
+world = World(size=40, different=True)  
+world.simulate(number_of_steps=1000000)
 
 # number_of_experiments = 40
 # statistics = pd.DataFrame()
